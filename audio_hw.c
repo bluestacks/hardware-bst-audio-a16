@@ -47,9 +47,10 @@
 #define PCM_DEVICE_SCO 2
 #define PCM_DEVICE_HDMI 3
 
-#define OUT_PERIOD_SIZE 512
-#define OUT_SHORT_PERIOD_COUNT 2
-#define OUT_LONG_PERIOD_COUNT 8
+// Adjust audio out buf size to 1024*4
+#define OUT_PERIOD_SIZE 1024
+#define OUT_SHORT_PERIOD_COUNT 4
+#define OUT_LONG_PERIOD_COUNT 4
 #define OUT_SAMPLING_RATE 48000
 
 #define IN_PERIOD_SIZE 1024
@@ -62,7 +63,7 @@
 
 /* minimum sleep time in out_write() when write threshold is not reached */
 #define MIN_WRITE_SLEEP_US 2000
-#define MAX_WRITE_SLEEP_US ((OUT_PERIOD_SIZE * OUT_SHORT_PERIOD_COUNT * 1000000) \
+#define MAX_WRITE_SLEEP_US ((OUT_PERIOD_SIZE * OUT_SHORT_PERIOD_COUNT * 1000000UL) \
                                 / OUT_SAMPLING_RATE)
 
 enum {
@@ -844,7 +845,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
     }
 
     if (!sco_on) {
-        int total_sleep_time_us = 0;
+        unsigned long total_sleep_time_us = 0UL;
         size_t period_size = out->pcm_config->period_size;
 
         /* do not allow more than out->cur_write_threshold frames in kernel
@@ -857,21 +858,28 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
                 kernel_frames = 0; /* assume no space is available */
                 break;
             }
+            const struct audio_stream* str = (struct audio_stream*) stream;
+            if (kernel_frames < 0 || kernel_frames > (int)out_get_buffer_size(str)) {
+                ALOGW("kernel_frames %d out of valid range [0, %d]\n", kernel_frames, (int)out_get_buffer_size(str));
+                kernel_frames = 0;
+                break;
+            }
             kernel_frames = pcm_get_buffer_size(out->pcm) - kernel_frames;
 
             if (kernel_frames > out->cur_write_threshold) {
-                int sleep_time_us =
-                    (int)(((int64_t)(kernel_frames - out->cur_write_threshold)
-                                    * 1000000) / out->pcm_config->rate);
+                unsigned long sleep_time_us =
+                    (((kernel_frames - out->cur_write_threshold)
+                                    * 1000000UL) / out->pcm_config->rate);
                 if (sleep_time_us < MIN_WRITE_SLEEP_US)
                     break;
                 total_sleep_time_us += sleep_time_us;
                 if (total_sleep_time_us > MAX_WRITE_SLEEP_US) {
-                    ALOGV("out_write() limiting sleep time %d to %d",
+                    ALOGV("out_write() limiting sleep time %lu to %lu",
                           total_sleep_time_us, MAX_WRITE_SLEEP_US);
                     sleep_time_us = MAX_WRITE_SLEEP_US -
                                         (total_sleep_time_us - sleep_time_us);
                 }
+                ALOGV("out_write() sleeping for %lu usecs", sleep_time_us);
                 usleep(sleep_time_us);
             }
 
