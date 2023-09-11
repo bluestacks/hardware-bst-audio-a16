@@ -53,13 +53,4 @@ PRODUCT_COPY_FILES := \
 	frameworks/av/services/audiopolicy/config/surround_sound_configuration_5_0.xml:$(TARGET_COPY_OUT_VENDOR)/etc/surround_sound_configuration_5_0.xml
 
 PRODUCT_PACKAGES := \
-	alsa_amixer \
-	alsa_aplay \
-	alsa_ctl \
-	alsa_ucm \
-	audio.primary.x86 \
-	audio.primary.hdmi \
-	audio.a2dp.default \
-	audio.usb.default \
-	audio_policy.default \
-	audio.r_submix.default \
+	audio.primary.bst
