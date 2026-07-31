@@ -32,6 +32,7 @@ LOCAL_SRC_FILES := \
 
 LOCAL_C_INCLUDES := \
 	external/expat/lib \
+	hardware/libhardware/include \
 	external/tinyalsa/include \
 	$(call include-path-for, audio-utils)
 
