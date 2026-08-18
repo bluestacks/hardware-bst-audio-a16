@@ -18,6 +18,9 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE := audio.primary.bst
 LOCAL_MODULE_TAGS := optional
+# BS-A16: install as vendor module; the vendor audio service (VNDK namespace)
+# cannot dlopen HALs from /system/lib*/hw (camera fix uses the same pattern)
+LOCAL_VENDOR_MODULE := true
 LOCAL_MODULE_RELATIVE_PATH := hw
 LOCAL_SHARED_LIBRARIES := \
 	liblog \
