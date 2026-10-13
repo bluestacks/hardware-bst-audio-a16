@@ -912,10 +912,23 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
     }
 
     ret = pcm_write(out->pcm, in_buffer, out_frames * frame_size);
-    if (ret == -EPIPE) {
-        /* In case of underrun, don't sleep since we want to catch up asap */
+    if (ret != 0) {
+        /*
+         * pcm_write() collapses a failed first write to -1 and leaves
+         * prepared set, so a later pcm_prepare() is a no-op. Drop the fd.
+         * Returning the byte count here makes AudioFlinger treat the write
+         * as successful and keeps every app on this stuck PCM.
+         */
+        ALOGW("out_write error: %d (%s)", ret,
+              out->pcm ? pcm_get_error(out->pcm) : "no pcm");
         pthread_mutex_unlock(&out->lock);
-        ALOGW("out_write underrun: %d", ret);
+        pthread_mutex_lock(&adev->lock);
+        pthread_mutex_lock(&out->lock);
+        do_out_standby(out);
+        pthread_mutex_unlock(&out->lock);
+        pthread_mutex_unlock(&adev->lock);
+        usleep(bytes * 1000000 / audio_stream_out_frame_size(stream) /
+               out_get_sample_rate(&stream->common));
         return ret;
     }
 
@@ -923,9 +936,10 @@ exit:
     pthread_mutex_unlock(&out->lock);
 
     if (ret != 0) {
-        ALOGW("out_write error: %d, sleeping...", ret);
+        ALOGW("out_write error: %d", ret);
         usleep(bytes * 1000000 / audio_stream_out_frame_size(stream) /
                out_get_sample_rate(&stream->common));
+        return ret;
     }
 
     return bytes;
